@@ -6,21 +6,21 @@ const HISTORY_KEY = "envelope_budget_history_v1";
 
 async function loadData() {
   try {
-    const r = await window.storage.get(STORAGE_KEY);
-    return r ? JSON.parse(r.value) : null;
+    const v = localStorage.getItem(STORAGE_KEY);
+    return v ? JSON.parse(v) : null;
   } catch { return null; }
 }
 async function saveData(data) {
-  try { await window.storage.set(STORAGE_KEY, JSON.stringify(data)); } catch {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
 }
 async function loadHistory() {
   try {
-    const r = await window.storage.get(HISTORY_KEY);
-    return r ? JSON.parse(r.value) : [];
+    const v = localStorage.getItem(HISTORY_KEY);
+    return v ? JSON.parse(v) : [];
   } catch { return []; }
 }
 async function saveHistory(h) {
-  try { await window.storage.set(HISTORY_KEY, JSON.stringify(h)); } catch {}
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h)); } catch {}
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
