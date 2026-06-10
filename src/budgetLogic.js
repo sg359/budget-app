@@ -20,7 +20,7 @@ export function makeSnapshot(state, savedAt) {
   return {
     period: { ...state.period },
     envelopes: JSON.parse(JSON.stringify(state.envelopes)),
-    transactions: [...state.transactions],
+    transactions: JSON.parse(JSON.stringify(state.transactions)),
     savedAt,
   };
 }
@@ -50,6 +50,8 @@ export function yearEndReset(state, history, savedAt) {
   const newHistory = archive(state, history, savedAt);
   const monthlyIds = collectEnvelopeIdsByType(state.envelopes, "monthly");
   const transactions = state.transactions.filter(t => monthlyIds.has(t.envelopeId));
+  // Period is intentionally left unchanged (per spec): Year End archives yearly
+  // transactions and resets their balances; it does not advance the calendar.
   return {
     newState: { ...state, transactions },
     newHistory,

@@ -1,7 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { collectEnvelopeIdsByType } from "./budgetLogic";
-import { makeSnapshot } from "./budgetLogic";
-import { monthEndReset, yearEndReset } from "./budgetLogic";
+import { collectEnvelopeIdsByType, makeSnapshot, monthEndReset, yearEndReset } from "./budgetLogic";
 
 describe("collectEnvelopeIdsByType", () => {
   const envelopes = [
@@ -28,6 +26,10 @@ describe("collectEnvelopeIdsByType", () => {
     const ids = collectEnvelopeIdsByType([{ id: "x", children: [] }], "monthly");
     expect(ids.has("x")).toBe(true);
   });
+
+  it("returns an empty set for no envelopes", () => {
+    expect(collectEnvelopeIdsByType([], "monthly").size).toBe(0);
+  });
 });
 
 describe("makeSnapshot", () => {
@@ -42,6 +44,17 @@ describe("makeSnapshot", () => {
     expect(snap.period).toEqual({ month: 5, year: 2026 });
     state.envelopes[0].children[0].id = "MUT";
     expect(snap.envelopes[0].children[0].id).toBe("b");
+  });
+
+  it("deep-copies transactions so later mutation does not affect the snapshot", () => {
+    const state = {
+      period: { month: 5, year: 2026 },
+      envelopes: [],
+      transactions: [{ id: "t1", envelopeId: "a", amount: -10 }],
+    };
+    const snap = makeSnapshot(state, "x");
+    state.transactions[0].amount = -999;
+    expect(snap.transactions[0].amount).toBe(-10);
   });
 });
 
@@ -88,6 +101,13 @@ describe("history cap", () => {
   it("keeps at most 24 snapshots, newest first", () => {
     const old = Array.from({ length: 24 }, (_, i) => ({ savedAt: `old${i}` }));
     const { newHistory } = monthEndReset(baseState(), old, "NEW");
+    expect(newHistory).toHaveLength(24);
+    expect(newHistory[0].savedAt).toBe("NEW");
+  });
+
+  it("caps yearEndReset history at 24 too", () => {
+    const old = Array.from({ length: 24 }, (_, i) => ({ savedAt: `old${i}` }));
+    const { newHistory } = yearEndReset(baseState(), old, "NEW");
     expect(newHistory).toHaveLength(24);
     expect(newHistory[0].savedAt).toBe("NEW");
   });
