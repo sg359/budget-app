@@ -190,7 +190,7 @@ export default function App() {
   const [history, setHistory] = useState([]);
   const [view, setView] = useState("home"); // home | envelope | history
   const [activeId, setActiveId] = useState(null);
-  const [modal, setModal] = useState(null); // null | "addEnvelope" | "addTx" | "editBudget" | "monthEnd" | "addSub"
+  const [modal, setModal] = useState(null); // null | "addEnvelope" | "addTx" | "editBudget" | "monthEnd" | "yearEnd" | "addSub"
   const [form, setForm] = useState({});
   const [loading, setLoading] = useState(true);
 
