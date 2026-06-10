@@ -1,7 +1,17 @@
 # Budget App — Cloud Sync & Year-End Reset Design
 
 **Date:** 2026-06-10
-**Status:** Approved (pending written-spec review)
+**Status:** Partially superseded — see amendment below.
+
+> **Amendment (2026-06-10):** The **Year-End / Month-End reset model** (Feature 1)
+> was implemented as designed. **Firebase cloud sync (Feature 2) was dropped** at
+> the user's request in favor of a simpler, fully-static **Export / Import to a
+> local JSON file**: an "Export" button downloads a timestamped backup and an
+> "Import" button restores one (with a confirm prompt), both in the History tab.
+> This keeps the app backend-free with no sign-in. Trade-offs accepted: backups
+> are manual (not auto-saved on every change) and single-device (the file is the
+> portable copy, not live cross-device sync). The Firebase sections below are
+> retained for historical context only and were not built.
 
 ## Goal
 

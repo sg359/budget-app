@@ -10,6 +10,12 @@
 
 **Spec:** `docs/superpowers/specs/2026-06-10-cloud-sync-and-year-end-design.md`
 
+> **Amendment (2026-06-10):** Phase A (Year-End / Month-End reset) was implemented
+> as written. **Phase B (Firebase cloud sync) was NOT built** — the user opted for
+> a simpler **Export / Import to a local JSON file** instead (Export + Import
+> buttons in the History tab; whole-state backup, manual, single-device). The
+> Phase B tasks below are retained for historical context only.
+
 ---
 
 ## File Structure
