@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { monthEndReset, yearEndReset } from "./budgetLogic";
 
 // ── Storage helpers ──────────────────────────────────────────────────────────
 const STORAGE_KEY = "envelope_budget_v1";
@@ -189,7 +190,7 @@ export default function App() {
   const [history, setHistory] = useState([]);
   const [view, setView] = useState("home"); // home | envelope | history
   const [activeId, setActiveId] = useState(null);
-  const [modal, setModal] = useState(null); // null | "addEnvelope" | "addTx" | "editBudget" | "monthEnd" | "addSub"
+  const [modal, setModal] = useState(null); // null | "addEnvelope" | "addTx" | "editBudget" | "monthEnd" | "yearEnd" | "addSub"
   const [form, setForm] = useState({});
   const [loading, setLoading] = useState(true);
 
@@ -291,55 +292,63 @@ export default function App() {
   }
 
   async function doMonthEnd() {
-    // Save snapshot to history
-    const snapshot = {
-      period: { ...period },
-      envelopes: JSON.parse(JSON.stringify(envelopes)),
-      transactions: [...transactions],
-      savedAt: new Date().toISOString(),
-    };
-    const newHistory = [snapshot, ...history].slice(0, 24);
+    const { newState, newHistory } = monthEndReset(data, history, new Date().toISOString());
     await saveHistory(newHistory);
     setHistory(newHistory);
-
-    // Reset: monthly envelopes go back to budget, yearly carry over balance
-    const { month, year } = currentPeriod();
-    const newMonth = month === 11 ? 0 : month + 1;
-    const newYear = month === 11 ? year + 1 : year;
-
-    function resetEnvelopes(envs) {
-      return envs.map(e => {
-        const isYearly = e.type === "yearly";
-        if (isYearly) {
-          // carry over: new budget = remaining balance
-          const bal = computeBalance(e, transactions);
-          return { ...e, budget: bal, children: resetEnvelopes(e.children || []) };
-        } else {
-          return { ...e, children: resetEnvelopes(e.children || []) };
-        }
-      });
-    }
-
-    const resetEnvs = resetEnvelopes(envelopes);
-    // Remove monthly transactions; keep yearly (they were folded into budget)
-    const yearlyIds = new Set();
-    function collectYearly(envs) {
-      envs.forEach(e => {
-        if (e.type === "yearly") yearlyIds.add(e.id);
-        if (e.children) collectYearly(e.children);
-      });
-    }
-    collectYearly(envelopes);
-    const remainingTx = transactions.filter(t => yearlyIds.has(t.envelopeId));
-
-    const newData = {
-      period: { month: newMonth, year: newYear },
-      envelopes: resetEnvs,
-      transactions: remainingTx,
-    };
-    persist(newData);
+    persist(newState);
     setModal(null);
     setView("home");
+  }
+
+  async function doYearEnd() {
+    const { newState, newHistory } = yearEndReset(data, history, new Date().toISOString());
+    await saveHistory(newHistory);
+    setHistory(newHistory);
+    persist(newState);
+    setModal(null);
+    setView("home");
+  }
+
+  // ── Backup: export to / import from a local JSON file ─────────────────────────
+  function exportBackup() {
+    const payload = JSON.stringify({ data, history, exportedAt: new Date().toISOString() }, null, 2);
+    const blob = new Blob([payload], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const d = new Date();
+    const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `budget-backup-${stamp}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function importBackup(e) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-importing the same file later
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      let parsed;
+      try {
+        parsed = JSON.parse(reader.result);
+      } catch {
+        alert("Could not read that file — it isn't valid JSON.");
+        return;
+      }
+      const newData = parsed.data ?? parsed;
+      const newHistory = Array.isArray(parsed.history) ? parsed.history : [];
+      if (!newData || !Array.isArray(newData.envelopes) || !Array.isArray(newData.transactions)) {
+        alert("That doesn't look like a budget backup file.");
+        return;
+      }
+      if (!confirm("Restore this backup? It will replace the envelopes, transactions, and history on this device.")) return;
+      persist(newData);
+      saveHistory(newHistory);
+      setHistory(newHistory);
+      alert("Backup restored.");
+    };
+    reader.readAsText(file);
   }
 
   // ── Delete transaction ──────────────────────────────────────────────────────
@@ -419,11 +428,18 @@ export default function App() {
                 </div>
                 <div style={{ fontSize: 12, color: "#475569", marginTop: 2 }}>of {fmt(totalBudget)} budgeted</div>
               </div>
-              <button onClick={() => setModal("monthEnd")} style={{
-                background: "#1e293b", border: "1px solid #334155", color: "#94a3b8",
-                borderRadius: 10, padding: "8px 14px", fontSize: 12, fontWeight: 600,
-                cursor: "pointer", flexShrink: 0,
-              }}>Month End →</button>
+              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                <button onClick={() => setModal("monthEnd")} style={{
+                  background: "#1e293b", border: "1px solid #334155", color: "#94a3b8",
+                  borderRadius: 10, padding: "8px 14px", fontSize: 12, fontWeight: 600,
+                  cursor: "pointer",
+                }}>Month End →</button>
+                <button onClick={() => setModal("yearEnd")} style={{
+                  background: "#1e293b", border: "1px solid #334155", color: "#94a3b8",
+                  borderRadius: 10, padding: "8px 14px", fontSize: 12, fontWeight: 600,
+                  cursor: "pointer",
+                }}>Year End →</button>
+              </div>
             </div>
           </div>
 
@@ -557,7 +573,20 @@ export default function App() {
       {view === "history" && (
         <>
           <div style={{ ...styles.header, paddingTop: 52 }}>
-            <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 16 }}>History</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div style={{ fontSize: 22, fontWeight: 800 }}>History</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={exportBackup} style={{
+                  background: "#1e293b", border: "1px solid #334155", color: "#94a3b8",
+                  borderRadius: 10, padding: "8px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                }}>⬇ Export</button>
+                <button onClick={() => document.getElementById("import-file").click()} style={{
+                  background: "#1e293b", border: "1px solid #334155", color: "#94a3b8",
+                  borderRadius: 10, padding: "8px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                }}>⬆ Import</button>
+                <input id="import-file" type="file" accept="application/json,.json" onChange={importBackup} style={{ display: "none" }} />
+              </div>
+            </div>
           </div>
           <div style={styles.body}>
             {history.length === 0 ? (
@@ -672,6 +701,20 @@ export default function App() {
             </ul>
           </div>
           <Btn onClick={doMonthEnd}>Close Month & Roll Forward</Btn>
+          <Btn variant="ghost" onClick={() => setModal(null)}>Cancel</Btn>
+        </Modal>
+      )}
+      {modal === "yearEnd" && (
+        <Modal title="Close Year" onClose={() => setModal(null)}>
+          <div style={{ color: "#94a3b8", fontSize: 14, lineHeight: 1.6, marginBottom: 20 }}>
+            <p style={{ margin: "0 0 10px" }}>Closing out the year will:</p>
+            <ul style={{ margin: 0, paddingLeft: 20 }}>
+              <li>Save a snapshot to History</li>
+              <li>Clear all <strong style={{ color: "#93c5fd" }}>yearly</strong> envelope transactions (balances reset to budget)</li>
+              <li>Leave <strong style={{ color: "#93c5fd" }}>monthly</strong> envelopes and all budgets unchanged</li>
+            </ul>
+          </div>
+          <Btn onClick={doYearEnd}>Archive Year &amp; Reset Yearly Envelopes</Btn>
           <Btn variant="ghost" onClick={() => setModal(null)}>Cancel</Btn>
         </Modal>
       )}
