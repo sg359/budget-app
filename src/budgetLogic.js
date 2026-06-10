@@ -13,3 +13,14 @@ export function collectEnvelopeIdsByType(envelopes, type) {
   walk(envelopes, null);
   return ids;
 }
+
+// Build a History snapshot of the current state. `savedAt` is passed in
+// (not generated here) so this stays pure and testable.
+export function makeSnapshot(state, savedAt) {
+  return {
+    period: { ...state.period },
+    envelopes: JSON.parse(JSON.stringify(state.envelopes)),
+    transactions: [...state.transactions],
+    savedAt,
+  };
+}
