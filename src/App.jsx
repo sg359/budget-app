@@ -309,6 +309,48 @@ export default function App() {
     setView("home");
   }
 
+  // ── Backup: export to / import from a local JSON file ─────────────────────────
+  function exportBackup() {
+    const payload = JSON.stringify({ data, history, exportedAt: new Date().toISOString() }, null, 2);
+    const blob = new Blob([payload], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const d = new Date();
+    const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `budget-backup-${stamp}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function importBackup(e) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-importing the same file later
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      let parsed;
+      try {
+        parsed = JSON.parse(reader.result);
+      } catch {
+        alert("Could not read that file — it isn't valid JSON.");
+        return;
+      }
+      const newData = parsed.data ?? parsed;
+      const newHistory = Array.isArray(parsed.history) ? parsed.history : [];
+      if (!newData || !Array.isArray(newData.envelopes) || !Array.isArray(newData.transactions)) {
+        alert("That doesn't look like a budget backup file.");
+        return;
+      }
+      if (!confirm("Restore this backup? It will replace the envelopes, transactions, and history on this device.")) return;
+      persist(newData);
+      saveHistory(newHistory);
+      setHistory(newHistory);
+      alert("Backup restored.");
+    };
+    reader.readAsText(file);
+  }
+
   // ── Delete transaction ──────────────────────────────────────────────────────
   function deleteTx(id) {
     persist({ ...data, transactions: transactions.filter(t => t.id !== id) });
@@ -531,7 +573,20 @@ export default function App() {
       {view === "history" && (
         <>
           <div style={{ ...styles.header, paddingTop: 52 }}>
-            <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 16 }}>History</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div style={{ fontSize: 22, fontWeight: 800 }}>History</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={exportBackup} style={{
+                  background: "#1e293b", border: "1px solid #334155", color: "#94a3b8",
+                  borderRadius: 10, padding: "8px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                }}>⬇ Export</button>
+                <button onClick={() => document.getElementById("import-file").click()} style={{
+                  background: "#1e293b", border: "1px solid #334155", color: "#94a3b8",
+                  borderRadius: 10, padding: "8px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                }}>⬆ Import</button>
+                <input id="import-file" type="file" accept="application/json,.json" onChange={importBackup} style={{ display: "none" }} />
+              </div>
+            </div>
           </div>
           <div style={styles.body}>
             {history.length === 0 ? (
